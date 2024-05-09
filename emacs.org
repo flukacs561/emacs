@@ -1,0 +1,567 @@
+#+title:      Emacs configuration
+#+author:     Ferenc Lukács
+#+language:   en
+#+date:       [2023-01-05 Thu 23:12]
+#+filetags:   :emacs:config:
+#+property:   header-args :tangle /home/lukacsf/.emacs.d/init.el
+
+General Rules:
+- NO deletion of files programmatically!
+
+* Set Lexical Binding
+#+BEGIN_SRC emacs-lisp
+  ;; -*- lexical-binding: t; -*-
+#+END_SRC
+
+* Custom Lisp Functions
+The file =test-functions.el= contains all the miscellaneous functions I wrote for my emacs config. Since I want them to be available as standalone commands, and/or want to use them in hooks or kebindings, this block loads them into the current session.
+#+BEGIN_SRC emacs-lisp
+  (defvar lf:emacs-repo (expand-file-name "~/code/emacs/"))
+  (add-to-list 'load-path (concat lf:emacs-repo "elisp/"))
+  (require 'functions)
+  ;; (require lfp)
+  (require 'openers)
+  ;; (require 'parser-functions)
+  ;; (require 'erpe)
+  (require 'personal)
+#+END_SRC
+
+* Package Management
+I use a custom function, =lf:install-package= to install packages. I have moved away from =use-package= because I want to converge on a config that I understand thouroughly. My solution is rather elementary as of now, but I do not need the various delayed loading and similar features of =use-package=, since I usually only open emacs once every session. I don't particularly care for quick startup time.
+#+BEGIN_SRC emacs-lisp
+  (require 'package)
+  (setq package-archives
+	'(("elpa" . "https://elpa.gnu.org/packages/")
+	  ("melpa" . "https://melpa.org/packages/")))
+
+  (package-initialize)
+  (unless package-archive-contents
+    (package-refresh-contents))
+#+END_SRC
+
+* General Settings
+#+BEGIN_SRC emacs-lisp
+  (setq make-backup-files nil)
+  (setq custom-file (concat lf:emacs-repo "elisp/custom.el"))
+
+  (if (and (fboundp 'native-comp-available-p)
+	   (native-comp-available-p))
+      (setq native-comp-async-report-warnings-errors nil))
+#+END_SRC
+
+** MacOS settings
+#+BEGIN_SRC emacs-lisp
+  (when (eq system-type 'darwin)
+    (setq mac-command-modifier 'meta)
+    (setq mac-option-modifier 'none)
+    (setq mac-control-modifier 'control)
+    (setq default-frame-alist '((font . "Iosevka 13")
+				(vertical-scroll-bars)))
+    (add-to-list 'exec-path (expand-file-name "~/.local/bin"))
+    (add-to-list 'exec-path (expand-file-name "~/.local/share/cabal/bin"))
+    (setenv "PATH"
+	    (concat
+	     (expand-file-name "~/.local/bin") path-separator
+	     (expand-file-name "~/.local/share/cabal/bin") path-separator
+	     (getenv "PATH")))
+    (require 'ls-lisp)
+    (setq ls-lisp-use-insert-directory-program nil))
+#+END_SRC
+
+* UI Settings
+#+BEGIN_SRC emacs-lisp
+  (scroll-bar-mode -1)
+  (tool-bar-mode -1)
+  (menu-bar-mode -1)
+  (setq frame-title-format '("emacs"))
+  (setq ring-bell-function 'ignore)
+  (setq use-short-answers t)
+  (global-display-line-numbers-mode t)
+  (global-hl-line-mode t)
+  (load-theme 'modus-operandi t)
+  (setq tab-bar-auto-width nil)
+  (setq tab-bar-new-tab-choice "*scratch*")
+
+  (lf:install-package 'ligature)
+  (ligature-set-ligatures 'prog-mode '("|||>" "<|||" "<==>" "<!--" "####" "~~>" "***" "||=" "||>"
+				       ":::" "::=" "=:=" "===" "==>" "=!=" "=>>" "=<<" "=/=" "!=="
+				       "!!." ">=>" ">>=" ">>>" ">>-" ">->" "->>" "-->" "---" "-<<"
+				       "<~~" "<~>" "<*>" "<||" "<|>" "<$>" "<==" "<=>" "<=<" "<->"
+				       "<--" "<-<" "<<=" "<<-" "<<<" "<+>" "</>" "###" "#_(" "..<"
+				       "..." "+++" "/==" "///" "_|_" "www" "&&" "^=" "~~" "~@" "~="
+				       "~>" "~-" "**" "*>" "*/" "||" "|}" "|]" "|=" "|>" "|-" "{|"
+				       "[|" "]#" "::" ":=" ":>" ":<" "$>" "==" "=>" "!=" "!!" ">:"
+				       ">=" ">>" ">-" "-~" "-|" "->" "--" "-<" "<~" "<*" "<|" "<:"
+				       "<$" "<=" "<>" "<-" "<<" "<+" "</" "#{" "#[" "#:" "#=" "#!"
+				       "##" "#(" "#?" "#_" "%%" ".=" ".-" ".." ".?" "+>" "++" "?:"
+				       "?=" "?." "??" ";;" "/*" "/=" "/>" "//" "__" "~~" "(*" "*)"
+				       "\\\\" "://"))
+  (global-ligature-mode t)
+#+END_SRC
+
+* Global Keybingings
+Some philosophy behind the bindings:
+- =C-x t= prefix indicates that it has to do with tab management
+- =C-c o= prefix indicates that the command opens a file
+- =C-c o M-= prefix is the same as the previous, but in a new tab
+#+BEGIN_SRC emacs-lisp
+  (let ((map global-map))
+    (define-key map (kbd "C-x c") #'lf:close-window)
+    (define-key map (kbd "C-x 3") #'lf:split-and-switch)
+    (define-key map (kbd "M-o") #'other-window)
+    (define-key map (kbd "M-i") #'imenu)
+    (define-key map (kbd "C-}") #'lf:enlarge-window-horizontally)
+    (define-key map (kbd "C-{") #'lf:shrink-window-horizontally)
+    (define-key map (kbd "C-x C-b") #'ibuffer)
+    (define-key map (kbd "C-x t t") #'lf:new-tab)
+    (define-key map (kbd "C-x t w") #'tab-close)
+    (define-key map (kbd "C-x t m") #'lf:tab-move-to-position)
+    (define-key map (kbd "C-x t c") #'lf:close-current-buffer-and-tab)
+    (define-key map (kbd "C-<tab>") #'tab-bar-switch-to-next-tab)
+    (define-key map (kbd "C-S-<tab>") #'tab-bar-switch-to-prev-tab)
+    (define-key map (kbd "C-<next>") #'tab-bar-switch-to-next-tab)
+    (define-key map (kbd "C-<prior>") #'tab-bar-switch-to-prev-tab)
+    (define-key map (kbd "C-c o c") #'lf:open-emacs-config-file)
+    (define-key map (kbd "C-c o M-c") #'lf:open-emacs-config-file-in-new-tab)
+    (define-key map (kbd "C-c o M-m") #'lf:open-emms-in-new-tab)
+    (define-key map (kbd "C-c o n") #'lf:open-note)
+    (define-key map (kbd "C-c o b") #'lf:open-book)
+    (define-key map (kbd "C-c o M-b") #'lf:open-book-in-new-tab)
+    (define-key map (kbd "C-c o x") #'lf:open-nix-file)
+    (define-key map (kbd "C-c o M-x") #'lf:open-nix-file-in-new-tab)
+    (define-key map (kbd "C-c o d") #'lf:open-diary)
+    (define-key map (kbd "C-c o y") #'lf:open-yt-link-with-mpv)
+    (define-key map (kbd "C-M-t") #'lf:open-ansi-term-in-new-tab))
+#+END_SRC
+
+* Shell
+The main shell I use inside of emacs is =eshell=. It is written in emacs lisp, and is well integrated with the rest of emacs. For example, it allows one to call elisp functions directly.
+#+BEGIN_SRC emacs-lisp
+  (define-key global-map (kbd "C-c o s") #'eshell)
+  (add-hook 'eshell-mode-hook #'lf:display-line-numbers-off)
+  (setq eshell-save-history-on-exit t)
+  (setq eshell-history-size 10000)
+  (setq eshell-hist-ignoredups t)
+  (setq eshell-destroy-buffer-when-process-dies t)
+  (setq eshell-aliases-file (concat lf:emacs-repo "eshell-aliases"))
+
+  (setq async-shell-command-display-buffer nil)
+
+  (add-hook 'term-mode-hook #'lf:display-line-numbers-off)
+  (add-hook 'shell-mode-hook #'lf:display-line-numbers-off)
+
+  (define-key global-map (kbd "M-s") #'lf:open-new-shell)
+  (define-key global-map (kbd "C-M-s") #'lf:open-new-shell-in-new-tab)
+#+END_SRC
+
+* Completion
+For my completion needs I use =vertico= and =orderless=. The workflow is rather simple. The orderless completion style gives most of the flexibility I need, vertico is basically only there for the UI enhancement.
+
+Note that I set all completion use cases to case insensitive.
+#+BEGIN_SRC emacs-lisp
+  (savehist-mode 1)
+
+  (lf:install-package 'orderless)
+  (setq orderless-component-separator 'orderless-escapable-split-on-space)
+  (setq completion-styles '(orderless partial-completion flex))
+  (setq completion-category-overrides '((file (styles . (partial-completion orderless)))))
+
+  (setq read-file-name-completion-ignore-case t)
+  (setq read-buffer-completion-ignore-case t)
+  (setq completion-ignore-case t)
+
+  (lf:install-package 'vertico)
+  (vertico-mode 1)
+  (setq vertico-cycle t)
+
+  (lf:install-package 'corfu)
+  (global-corfu-mode)
+  (setq corfu-auto t)
+  (setq corfu-auto-delay 0.1)
+  (setq corfu-quit-no-match 'separator)
+  (setq corfu-auto-prefix 1)
+
+  ;; Not available, maybe in the future.
+  ;;(lf:install-package 'corfu-doc)
+#+END_SRC
+	
+* dired
++ =C-x C-j= (=dired-jump=) moves one directory up. If the current buffers contains a file, then it displays the folder containing the file using dired.
++ =o= (=dired-find-file-other-window=) opens the file at point in another window.
++ =f= (=dired-find-file=) opens file at point.
++ =% m= (=dired-mark-files-regexp=) lets one mark files based on a regular expression
++ =t= (=dired-toggle-marks=) toggles the selection, i.e. marks unmarked files and unmarks marked ones.
++ =k= (=dired-do-kill-lines=) tomporarily removes from view everything that is marked. (One way to revert this is to use the regular =undo=.)
++ =K= (=lf:dired-kill-unmarked-lines=) does the same as the previous, except that it removes the lines unmarked.
++ =g= (=revert-buffer=) reloads (/refreshes/, /regenerates/) the buffer (applies changes such as new files and removes filtering such as described above)
++ =M= (=dired-do-chmod=) lets one change file permissions. Basically a layer of interactivity over the regular =chmod= coreutil.
++ trash is located at =~/.local/share/Trash=
+#+BEGIN_SRC emacs-lisp
+  (setq dired-recursive-copies 'always)
+  (setq dired-recursive-deletes 'always)
+  (setq delete-by-moving-to-trash t)
+  (setq trash-directory (expand-file-name "~/.local/share/Trash/files/"))
+  (setq dired-dwim-target t)
+  (setq dired-listing-switches
+	"-AGFhlv --group-directories-first --time-style=long-iso --color=always")
+  (setq dired-auto-revert-buffer #'dired-directory-changed-p)
+  (add-hook 'dired-mode-hook #'dired-hide-details-mode)
+
+  (lf:install-package 'dired-subtree)
+  (setq dired-subtree-use-backgrounds nil)
+  (let ((map dired-mode-map))
+    (define-key map (kbd "<tab>") #'dired-subtree-toggle)
+    (define-key map (kbd "<backtab>") #'dired-subtree-remove) ; S-TAB
+    (define-key map (kbd "K") #'lf:dired-kill-unmarked-lines)
+    (define-key map (kbd "í") #'lf:dired-open-file)
+    (define-key map (kbd "M-s M-s") #'shell))
+#+END_SRC
+
+* Keyboard Macros
++ =C-x (= (=kmacro-start-macro=) starts recording a keyboard macro.
++ =C-x )= (=kmacro-end-macro=) finishes recording a keyboard macro.
++ =C-x e= (=kmacro-end-and-call-macro=) runs the most recently defined macro
++ =kmacro-name-last-macro= prompts you for a name to be assigned to the last macro defined
++ =insert-kbd-macro= inserts the definition of the selected macro into the current buffer
+#+begin_src emacs-lisp
+  (define-key global-map (kbd "C-x e") #'kmacro-end-and-call-macro)
+
+  (fset 'kmacro/md-link->org-link
+	(kmacro-lambda-form [?\C-d ?\C-s ?\] return backspace ?\C-d ?\C-  ?\C-s ?\) return ?\C-w ?\C-a ?\C-  ?\C-e ?\C-c ?\C-l ?\C-y backspace return return ?\C-a ?\C-n] 0 "%d"))
+#+end_src
+
+* Documents
+PostScript files can be opened with DocView mode.
+#+BEGIN_SRC emacs-lisp
+  (dolist (mode '(image-mode-hook
+		  eww-mode-hook
+		  doc-view-minor-mode-hook))
+    (add-hook mode #'lf:display-line-numbers-off))
+
+#+END_SRC
+** pdf
++ =r= (=pdf-history-forward=) jump to next pdf history location
++ =l= (=pdf-history-backward=) jump to previous pdf history location
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'pdf-tools)
+  (pdf-tools-install)
+  (define-key pdf-view-mode-map (kbd "M-m") #'pdf-view-midnight-minor-mode)
+
+  (with-eval-after-load 'pdf-tools
+    (lf:install-package 'pdf-view-restore))
+  (setq pdf-view-restore-filename (expand-file-name (concat user-emacs-directory
+							    ".pdf-view-restore")))
+
+  (add-hook 'pdf-view-mode-hook #'lf:display-line-numbers-off)
+  (add-hook 'pdf-view-mode-hook #'pdf-view-restore-mode)
+#+END_SRC
+
+** LaTeX
+- LaTeX/AucTex setup
+  - [[https://www.reddit.com/r/emacs/comments/eyqopa/emacs_with_auctex_auto_refresh_of_preview_of_tex/][good reddit post explaining the setup]]
+  - [[https://tony-zorman.com/posts/latex-change-env-0.3.html][interesting package]]
+  - snippets
+  - autopairing environment
+  - nice template for documents and maths
+#+BEGIN_SRC emacs-lisp :tangle no
+  (unless (package-installed-p 'auctex)
+    (package-install 'auctex))
+
+  (require 'tex)
+  (setq TeX-auto-save t)
+  (setq TeX-parse-self t)
+  (setq TeX-PDF-mode t)
+  (setq-default TeX-master nil)
+
+  (add-hook 'pdf-view-mode-hook #'auto-revert-mode)
+
+  (dolist (hook '(TeX-fold-mode
+		  LaTeX-math-mode))
+    (add-hook 'LaTeX-mode-hook hook))
+
+  (setq TeX-view-program-selection '((output-pdf "PDF Tools")
+				     (output-dvi "open")
+				     (output-html "open")))
+
+  (let ((latexmk-command '("LaTeXmk" "latexmk %s" TeX-run-TeX nil t
+			   :help "Run latexmk on file"))
+	(xelatex-command '("XeLaTeX" "xelatex %s" TeX-run-TeX nil t
+			   :help "Compile file with xelatex")))
+    (progn
+      (push latexmk-command TeX-command-list)
+      (push xelatex-command TeX-command-list)))
+#+END_SRC
+
+Configuring =latexmk= is also necessary. The following is the relevant content of the =~/.latexmkrc= file.
+#+BEGIN_SRC shell :tangle no
+  # $pdflatex = "xelatex -synctex=1 -halt-on-error %O %S && cp %D %R.pdf";
+  $pdflatex = "xelatex -halt-on-error %O %S && cp %D %R.pdf";
+  $pdf_mode = 1;
+  $postscript_mode = $dvi_mode = 0;
+  $preview_continuous_mode = 1;
+
+  $view = 'none';
+  $recorder = 1;
+  # $bibtex_use = 2;
+#+END_SRC
+
+* Programming
+First, a quick and useful keybinding: calling this on an S-expression kills it, evaluates it, and pastes in its value.
+
+#+BEGIN_SRC emacs-lisp
+  (define-key global-map (kbd "C-x C-M-e") #'lf:eval-and-replace)
+#+END_SRC
+** flycheck
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'flycheck)
+  (global-flycheck-mode t)
+
+  (lf:install-package 'yasnippet)
+  (lf:install-package 'yasnippet-snippets)
+  (yas-reload-all)
+#+END_SRC
+** lsp
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'lsp-mode)
+  (setq lsp-keymap-prefix "C-c l")
+
+  (lf:install-package 'lsp-ui)
+  (add-hook 'lsp-mode-hook 'lsp-ui-mode)
+
+  (setq lsp-ui-sideline-show-diagnostics t)
+  (setq lsp-ui-sideline-show-code-actions nil)
+  (setq lsp-ui-sideline-update-mode 'line)
+  (setq lsp-ui-doc-show-with-cursor t)
+  (setq lsp-ui-doc-show-with-mouse nil)
+  (setq lsp-ui-doc-position 'bottom)
+#+END_SRC
+
+** treesitter
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'tree-sitter)
+  (lf:install-package 'tree-sitter-langs)
+  (global-tree-sitter-mode)
+  (add-hook 'tree-sitter-after-on-hook #'tree-sitter-hl-mode)
+#+END_SRC
+
+** scheme
+#+BEGIN_SRC emacs-lisp
+  (setq scheme-program-name "chibi-scheme")
+  (setq scheme-mit-dialect nil)
+#+END_SRC
+
+** haskell
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'haskell-mode)
+  (lf:install-package 'lsp-haskell)
+
+  (dolist (mode '(haskell-mode-hook
+		  haskell-literate-mode-hook))
+    (dolist (action '(lsp
+		      subword-mode
+		      yas-minor-mode
+		      haskell-indentation-mode))
+      (add-hook mode action)))
+
+  (setq haskell-stylish-on-save t)
+#+END_SRC
+
+** agda
+#+BEGIN_SRC emacs-lisp
+  (load-file (let ((coding-system-for-read 'utf-8))
+	       (shell-command-to-string "agda-mode locate")))
+
+  (setq agda2-program-args '("-l standard-library" "-i" "."))
+  (setq agda2-program-args nil)
+
+  (add-hook 'agda2-mode-hook 'subword-mode)
+#+END_SRC
+
+** nix
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'nix-mode)
+
+  (add-hook 'nix-mode-hook #'subword-mode)
+#+END_SRC
+
+** yaml
+#+begin_src emacs-lisp
+(lf:install-package 'yaml-mode)
+#+end_src
+* magit
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'magit)
+
+  (with-eval-after-load 'magit
+    (lf:install-package 'magit-todos)
+    (magit-todos-mode 1))
+
+  (define-key magit-mode-map (kbd "C-<tab>") nil)
+#+END_SRC
+
+* Notes
+** org
+#+BEGIN_SRC emacs-lisp
+  (defvar notes-directory (expand-file-name "~/code/notes"))
+
+  (lf:install-package 'org-modern)
+  (global-org-modern-mode 1)
+  (org-babel-do-load-languages 'org-babel-load-languages
+			       '((emacs-lisp . t)
+				 (scheme . t)))
+
+  (setq org-todo-keywords '((sequence "TODO" "IN-PROGRESS" "WAITING" "DONE")))
+  (setq org-src-fontify-natively t)
+  (setq org-return-follows-link t)
+  (setq org-ellipsis "↴")
+
+  (add-hook 'org-mode-hook #'visual-line-mode)
+  (add-hook 'org-mode-hook #'lf:org-syntax-table-modify)
+
+  (define-key org-mode-map (kbd "C-c l") #'kmacro/md-link->org-link)
+  (with-eval-after-load 'org-mode
+    (set-face-attribute 'org-block nil :font "Iosevka Comfy 10"))
+
+  (defun lf:org-syntax-table-modify ()
+    "Modify `org-syntax-table' for current org file."
+    (interactive)
+    (modify-syntax-entry ?< "." org-mode-syntax-table)
+    (modify-syntax-entry ?> "." org-mode-syntax-table))
+#+END_SRC
+
+** Markdown
+#+BEGIN_SRC emacs-lisp
+  (add-hook 'markdown-mode-hook #'visual-line-mode)
+#+END_SRC
+** spelling
+#+begin_src emacs-lisp
+  (setq ispell-program "hunspell")
+#+end_src
+* RSS Feeds
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'elfeed)
+  (setq-default elfeed-search-filter "@6-months-ago +unread")
+  (setq elfeed-db-directory (concat user-emacs-directory "elfeed"))
+  (define-key global-map (kbd "C-c o e") #'elfeed)
+  (define-key global-map (kbd "C-c o M-e") #'lf:open-elfeed-in-new-tab)
+  (define-key elfeed-show-mode-map (kbd "í") #'lf:elfeed-open-with-mpv)
+#+END_SRC
+* Music
+To create a playlist, assemble it in the current playlist and save it as a regular file to
+=~/Music/emms-playlists=. Saved playlists can be accessed by inserting them into the current playlist buffer using the =emms-insert-playlist= command.
+#+BEGIN_SRC emacs-lisp
+  (lf:install-package 'emms)
+  (emms-all)
+  (setq emms-player-list '(emms-player-mpv))
+  (setq emms-info-functions '(emms-info-native))
+  (setq emms-source-file-default-directory (expand-file-name "~/mus"))
+  (setq emms-browser-covers 'emms-browser-cache-thumbnail-async)
+  (setq emms-seek-seconds 5)
+  (emms-mode-line-mode -1)
+
+  (define-key emms-playlist-mode-map (kbd "C-c i") #'emms-insert-playlist)
+  (define-key global-map (kbd "C-c p") #'emms-pause)
+#+END_SRC
+
+* Calendar
++ =icalendar-import-buffer= imports and adds the contents of an icalendar buffer to the diary
++ =icalendar-import-file=
+#+BEGIN_SRC emacs-lisp
+  (setq calendar-date-style 'iso)
+  (setq calendar-week-start-day 1)
+  (setq calendar-mark-holidays-flag t)
+  (setq calendar-mark-diary-entries-flag t)
+
+  (setq calendar-location-name "Budapest")
+  (setq calendar-longitude 19)
+  (setq calendar-latitude 47.4)
+
+  (setq appt-audible t)
+  (setq appt-display-mode-line t)
+  (setq appt-display-format 'window)
+  (setq appt-display-duration 10)
+  (setq appt-display-warning-interval 3)
+  (setq appt-message-warning-time 15)
+
+  (setq diary-date-forms diary-iso-date-forms)
+  (setq diary-mail-days 1)
+  (add-hook 'diary-list-entries-hook 'diary-sort-entries t)
+  (add-hook 'diary-list-entries-hook 'diary-include-other-diary-files)
+  (add-hook 'diary-mark-entries-hook 'diary-mark-included-diary-files)
+
+  (defface anniversary-mark
+    '((((class color) (min-colors 88) (background light))
+       :background "#fff1f0" :foreground "#a60000")
+      (((class color) (min-colors 88) (background dark))
+       :background "#2c0614" :foreground "#ff8059")
+      (t :foreground "red"))
+    "Face to mark anniversaries in the calendar.")
+
+  (defface misc-mark
+    '((((class color) (min-colors 88) (background light))
+       :background "#ffffb1" :foreground "#813e00")
+      (((class color) (min-colors 88) (background dark))
+       :background "#221000" :foreground "#eecc00")
+      (t :foreground "yellow"))
+    "Face to mark 'background' events in the calendar.")
+
+  (defface blocker-mark
+    '((((class color) (min-colors 88) (background light))
+       :background "#aceaac" :foreground "#004c00")
+      (((class color) (min-colors 88) (background dark))
+       :background "#0a3315" :foreground "#9ff0cf")
+      (t :foreground "green"))
+    "Face to mark whole-day events in the calendar.")
+#+END_SRC
+
+** Custom Calendar S-expressions
+#+BEGIN_SRC emacs-lisp
+  (defun diary-until (sexp y-until m-until d-until &optional mark)
+    (with-no-warnings (defvar date) (defvar entry))
+    (let ((until (calendar-absolute-from-gregorian
+		  (diary-make-date y-until m-until d-until)))
+	  (current (calendar-absolute-from-gregorian date)))
+      (calendar-dlet ((diary-entry (eval sexp)))
+	(and diary-entry
+	     (<= current until)))))
+#+END_SRC
+
+** Holidays
+#+BEGIN_SRC emacs-lisp
+  (setq calendar-holidays
+	'((holiday-fixed 1 6 "Vízkereszt")
+	  (holiday-fixed 3 15 "1848-as forradalom")
+	  ;; easter
+	  (holiday-easter-etc -46 "Hamvazószerda")
+	  (holiday-easter-etc -14 "Passion Sunday")
+	  (holiday-easter-etc -7 "Virágvasárnap")
+	  (holiday-easter-etc -3 "Nagycsütörtök")
+	  (holiday-easter-etc -2 "Nagypéntek")
+	  (holiday-easter-etc 0 "Húsvét vasárnap")
+	  (holiday-easter-etc 39 "Mennybemenetel")
+	  (holiday-easter-etc 49 "Pünkösdvasárnap")
+	  (holiday-easter-etc 50 "Pünkösdhétfő")
+	  (holiday-easter-etc 56 "Szentháromság ünnepe")
+	  (holiday-easter-etc 60 "Corpus Christi")
+	  (holiday-fixed 5 1 "Munka ünnepe")
+	  (holiday-float 5 0 1 "Anyák napja")
+	  (holiday-fixed 8 20 "Szent István ünnepe")
+	  (holiday-fixed 10 6 "Aradi vértanúk emléknapja")
+	  (holiday-fixed 10 23 "1956-os forradalom")
+	  (holiday-fixed 11 1 "Mindenszentek")
+	  (holiday-fixed 11 2 "Halottak napja")
+	  ;; christmas
+	  (holiday-advent 0 "Advent első vasárnapja")
+	  (holiday-advent 7 "Advent második vasárnapja")
+	  (holiday-advent 14 "Advent harmadik vasárnapja")
+	  (holiday-advent 21 "Advent negyedik vasárnapja")
+	  (holiday-fixed 12 25 "Karácsony")
+	  (solar-equinoxes-solstices)))
+#+END_SRC
+
+* Enable Disabled Commands
+#+BEGIN_SRC emacs-lisp
+  (dolist (command '(downcase-region
+		     upcase-region))
+    (put command 'disabled nil))
+#+END_SRC
